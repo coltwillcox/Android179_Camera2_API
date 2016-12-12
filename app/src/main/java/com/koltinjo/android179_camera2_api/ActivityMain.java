@@ -13,6 +13,7 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
@@ -28,9 +29,13 @@ import android.widget.Toast;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 
+import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 // TODO Fix orientation.
@@ -40,6 +45,7 @@ public class ActivityMain extends AppCompatActivity {
 
     private static final String THREAD_NAME = "thread69";
     private static final int CAMERA_REQUEST = 69;
+    private static final int WRITE_REQUEST = 70;
 
     @BindView(R.id.activitymain_textureview)
     TextureView textureView;
@@ -47,6 +53,7 @@ public class ActivityMain extends AppCompatActivity {
     ImageButton imageButtonVideo;
 
     private static SparseIntArray orientations;
+    private boolean recording;
     private TextureView.SurfaceTextureListener surfaceTextureListener;
     private CameraDevice camera;
     private CameraDevice.StateCallback cameraStateCallback;
@@ -55,7 +62,8 @@ public class ActivityMain extends AppCompatActivity {
     private Handler handler;
     private Size previewSize;
     private CaptureRequest.Builder captureRequestBuilder;
-    private boolean recording;
+    private File videoFolder;
+    private String videoFileName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -108,6 +116,8 @@ public class ActivityMain extends AppCompatActivity {
         orientations = new SparseIntArray();
         recording = false;
 
+        createVideoFolder();
+
         orientations.append(Surface.ROTATION_0, 0);
         orientations.append(Surface.ROTATION_90, 90);
         orientations.append(Surface.ROTATION_180, 180);
@@ -156,10 +166,21 @@ public class ActivityMain extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-        if (requestCode == CAMERA_REQUEST) {
-            if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, getString(R.string.app_name) + " will not run without camera permission.", Toast.LENGTH_SHORT).show();
-            }
+        switch (requestCode) {
+            case CAMERA_REQUEST:
+                if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, getString(R.string.app_name) + " will not run without camera permission.", Toast.LENGTH_SHORT).show();
+                }
+                break;
+            case WRITE_REQUEST:
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    recording = true;
+                    imageButtonVideo.setImageResource(R.mipmap.button_video_busy);
+                    createVideoFileName();
+                } else {
+                    Toast.makeText(this, getString(R.string.app_name) + " will not run without write permission.", Toast.LENGTH_SHORT).show();
+                }
+                break;
         }
     }
 
@@ -303,8 +324,47 @@ public class ActivityMain extends AppCompatActivity {
             recording = false;
             imageButtonVideo.setImageResource(R.mipmap.button_video_online);
         } else {
+            checkWriteStoragePermission();
+        }
+    }
+
+    private void createVideoFolder() {
+        File fileMovie = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES);
+        videoFolder = new File(fileMovie, getString(R.string.app_name));
+        if (!videoFolder.exists()) {
+            videoFolder.mkdirs();
+        }
+    }
+
+    private File createVideoFileName() {
+        String time = new SimpleDateFormat("MMddyyyyHHmmss").format(new Date());
+        String prefix = "video_" + time;
+        File videoFile = null;
+        try {
+            videoFile = File.createTempFile(prefix, ".mp4", videoFolder);
+            videoFileName = videoFile.getAbsolutePath();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return videoFile;
+    }
+
+    private void checkWriteStoragePermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                recording = true;
+                imageButtonVideo.setImageResource(R.mipmap.button_video_busy);
+                createVideoFileName();
+            } else {
+                if (shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                    Toast.makeText(this, getString(R.string.app_name) + " needs to be able to save videos.", Toast.LENGTH_SHORT).show();
+                }
+                requestPermissions(new String[] {Manifest.permission.WRITE_EXTERNAL_STORAGE}, WRITE_REQUEST);
+            }
+        } else {
             recording = true;
             imageButtonVideo.setImageResource(R.mipmap.button_video_busy);
+            createVideoFileName();
         }
     }
 
