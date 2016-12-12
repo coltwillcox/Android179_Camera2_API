@@ -1,9 +1,14 @@
 package com.koltinjo.android179_camera2_api;
 
+import android.content.Context;
 import android.graphics.SurfaceTexture;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraManager;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Toast;
@@ -19,6 +24,7 @@ public class ActivityMain extends AppCompatActivity {
     private TextureView.SurfaceTextureListener surfaceTextureListener;
     private CameraDevice camera;
     private CameraDevice.StateCallback cameraStateCallback;
+    private String cameraId;
 
 
     @Override
@@ -31,7 +37,7 @@ public class ActivityMain extends AppCompatActivity {
         surfaceTextureListener = new TextureView.SurfaceTextureListener() {
             @Override
             public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
-                Toast.makeText(getApplicationContext(), "onSurfaceTextureAvailable", Toast.LENGTH_SHORT).show();
+                setupCamera(i, i1);
             }
 
             @Override
@@ -74,7 +80,7 @@ public class ActivityMain extends AppCompatActivity {
         super.onResume();
 
         if (textureView.isAvailable()) {
-
+            setupCamera(textureView.getWidth(), textureView.getHeight());
         } else {
             textureView.setSurfaceTextureListener(surfaceTextureListener);
         }
@@ -101,6 +107,23 @@ public class ActivityMain extends AppCompatActivity {
                             | View.SYSTEM_UI_FLAG_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
             );
+        }
+    }
+
+    private void setupCamera(int width, int height) {
+        CameraManager cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            for (String id : cameraManager.getCameraIdList()) {
+                CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(id);
+                if (cameraCharacteristics.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT) {
+                    // Just skip if front camera.
+                    continue;
+                }
+                cameraId = id;
+                return;
+            }
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
         }
     }
 
