@@ -10,6 +10,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
+import android.util.SparseIntArray;
+import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import butterknife.BindView;
@@ -29,6 +32,7 @@ public class ActivityMain extends AppCompatActivity {
     private String cameraId;
     private HandlerThread handlerThreadBackground;
     private Handler handler;
+    private static SparseIntArray orientations;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,6 +80,12 @@ public class ActivityMain extends AppCompatActivity {
                 camera = null;
             }
         };
+        orientations = new SparseIntArray();
+
+        orientations.append(Surface.ROTATION_0, 0);
+        orientations.append(Surface.ROTATION_90, 90);
+        orientations.append(Surface.ROTATION_180, 180);
+        orientations.append(Surface.ROTATION_270, 270);
     }
 
     @Override
@@ -124,6 +134,20 @@ public class ActivityMain extends AppCompatActivity {
                     // Just skip if front camera.
                     continue;
                 }
+
+                int orientation = getWindowManager().getDefaultDisplay().getRotation();
+                int rotationTotal = sensorToDeviceRotation(cameraCharacteristics, orientation);
+                // Swap if in landscape mode.
+                int widthRotated;
+                int heightRotated;
+                if (rotationTotal == 90 || rotationTotal == 270) {
+                    widthRotated = height;
+                    heightRotated = width;
+                } else {
+                    widthRotated = width;
+                    heightRotated = height;
+                }
+
                 cameraId = id;
                 return;
             }
@@ -154,6 +178,12 @@ public class ActivityMain extends AppCompatActivity {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    private static int sensorToDeviceRotation(CameraCharacteristics cameraCharacteristics, int orientation) {
+        int orientationSensor = cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
+        int orientationDevice = orientations.get(orientation);
+        return (orientationSensor + orientationDevice + 360) % 360;
     }
 
 }
