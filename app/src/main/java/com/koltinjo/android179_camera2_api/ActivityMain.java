@@ -23,6 +23,7 @@ import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.ImageButton;
 import android.widget.Toast;
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -32,6 +33,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+// TODO Fix orientation.
+
 // https://www.youtube.com/watch?v=CuvVpsFc77w&index=1&list=PL9jCwTXYWjDIHNEGtsRdCTk79I9-95TbJ
 public class ActivityMain extends AppCompatActivity {
 
@@ -40,6 +43,8 @@ public class ActivityMain extends AppCompatActivity {
 
     @BindView(R.id.activitymain_textureview)
     TextureView textureView;
+    @BindView(R.id.activitymain_imagebutton_video)
+    ImageButton imageButtonVideo;
 
     private static SparseIntArray orientations;
     private TextureView.SurfaceTextureListener surfaceTextureListener;
@@ -50,6 +55,7 @@ public class ActivityMain extends AppCompatActivity {
     private Handler handler;
     private Size previewSize;
     private CaptureRequest.Builder captureRequestBuilder;
+    private boolean recording;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -100,6 +106,7 @@ public class ActivityMain extends AppCompatActivity {
             }
         };
         orientations = new SparseIntArray();
+        recording = false;
 
         orientations.append(Surface.ROTATION_0, 0);
         orientations.append(Surface.ROTATION_90, 90);
@@ -287,6 +294,17 @@ public class ActivityMain extends AppCompatActivity {
         } else {
             // If all else fails.
             return choices[0];
+        }
+    }
+
+    // Video button method.
+    public void recordVideo(View view) {
+        if (recording) {
+            recording = false;
+            imageButtonVideo.setImageResource(R.mipmap.button_video_online);
+        } else {
+            recording = true;
+            imageButtonVideo.setImageResource(R.mipmap.button_video_busy);
         }
     }
 

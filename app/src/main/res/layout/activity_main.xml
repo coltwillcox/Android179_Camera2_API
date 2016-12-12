@@ -29,10 +29,11 @@
                 android:src="@mipmap/button_camera"/>
 
         <ImageButton
-                android:id="@+id/activitymain_imagebutton_video_online"
+                android:id="@+id/activitymain_imagebutton_video"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:onClick="recordVideo"
                 android:src="@mipmap/button_video_online"/>
 
     </LinearLayout>
