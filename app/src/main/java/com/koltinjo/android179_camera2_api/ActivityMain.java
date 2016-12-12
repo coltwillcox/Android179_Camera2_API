@@ -1,21 +1,27 @@
 package com.koltinjo.android179_camera2_api;
 
+import android.Manifest;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.support.annotation.NonNull;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.Toast;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 
@@ -27,6 +33,7 @@ import java.util.List;
 public class ActivityMain extends AppCompatActivity {
 
     private static final String THREAD_NAME = "thread69";
+    private static final int CAMERA_REQUEST = 69;
 
     @BindView(R.id.activitymain_textureview)
     TextureView textureView;
@@ -51,6 +58,7 @@ public class ActivityMain extends AppCompatActivity {
             @Override
             public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
                 setupCamera(i, i1);
+                connectCamera();
             }
 
             @Override
@@ -72,6 +80,7 @@ public class ActivityMain extends AppCompatActivity {
             @Override
             public void onOpened(CameraDevice cameraDevice) {
                 camera = cameraDevice;
+                Toast.makeText(ActivityMain.this, "Camera connection made.", Toast.LENGTH_SHORT).show();
             }
 
             @Override
@@ -101,6 +110,7 @@ public class ActivityMain extends AppCompatActivity {
         startBackgroundThread();
         if (textureView.isAvailable()) {
             setupCamera(textureView.getWidth(), textureView.getHeight());
+            connectCamera();
         } else {
             textureView.setSurfaceTextureListener(surfaceTextureListener);
         }
@@ -128,6 +138,17 @@ public class ActivityMain extends AppCompatActivity {
                             | View.SYSTEM_UI_FLAG_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
             );
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == CAMERA_REQUEST) {
+            if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, getString(R.string.app_name) + " will not run without camera permission.", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
@@ -159,6 +180,27 @@ public class ActivityMain extends AppCompatActivity {
                 previewSize = chooseOptimumSize(map.getOutputSizes(SurfaceTexture.class), widthRotated, heightRotated);
                 cameraId = id;
                 return;
+            }
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void connectCamera() {
+        CameraManager cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            // Ask for permission on Android M.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    cameraManager.openCamera(cameraId, cameraStateCallback, handler);
+                } else {
+                    if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
+                        Toast.makeText(this, getString(R.string.app_name) + " requires access to camera.", Toast.LENGTH_SHORT).show();
+                    }
+                    requestPermissions(new String[] {Manifest.permission.CAMERA}, CAMERA_REQUEST);
+                }
+            } else {
+                cameraManager.openCamera(cameraId, cameraStateCallback, handler);
             }
         } catch (CameraAccessException e) {
             e.printStackTrace();
