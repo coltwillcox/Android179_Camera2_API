@@ -11,6 +11,7 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -64,6 +65,9 @@ public class ActivityMain extends AppCompatActivity {
     private CaptureRequest.Builder captureRequestBuilder;
     private File videoFolder;
     private String videoFileName;
+    private int rotationTotal;
+    private Size videoSize;
+    private MediaRecorder mediaRecorder;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -115,6 +119,7 @@ public class ActivityMain extends AppCompatActivity {
         };
         orientations = new SparseIntArray();
         recording = false;
+        mediaRecorder = new MediaRecorder();
 
         createVideoFolder();
 
@@ -197,7 +202,7 @@ public class ActivityMain extends AppCompatActivity {
                 StreamConfigurationMap map = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
 
                 int orientation = getWindowManager().getDefaultDisplay().getRotation();
-                int rotationTotal = sensorToDeviceRotation(cameraCharacteristics, orientation);
+                rotationTotal = sensorToDeviceRotation(cameraCharacteristics, orientation);
                 // Swap if in landscape mode.
                 int widthRotated;
                 int heightRotated;
@@ -210,6 +215,7 @@ public class ActivityMain extends AppCompatActivity {
                 }
 
                 previewSize = chooseOptimumSize(map.getOutputSizes(SurfaceTexture.class), widthRotated, heightRotated);
+                videoSize = chooseOptimumSize(map.getOutputSizes(MediaRecorder.class), widthRotated, heightRotated);
                 cameraId = id;
                 return;
             }
@@ -336,6 +342,7 @@ public class ActivityMain extends AppCompatActivity {
         }
     }
 
+    // TODO return = void?
     private File createVideoFileName() {
         String time = new SimpleDateFormat("MMddyyyyHHmmss").format(new Date());
         String prefix = "video_" + time;
@@ -365,6 +372,22 @@ public class ActivityMain extends AppCompatActivity {
             recording = true;
             imageButtonVideo.setImageResource(R.mipmap.button_video_busy);
             createVideoFileName();
+        }
+    }
+
+    private void setupMediaRecorder() {
+        mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        mediaRecorder.setOutputFile(videoFileName);
+        mediaRecorder.setVideoEncodingBitRate(1000000);
+        mediaRecorder.setVideoFrameRate(30);
+        mediaRecorder.setVideoSize(videoSize.getWidth(), videoSize.getHeight());
+        mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
+        mediaRecorder.setOrientationHint(rotationTotal);
+        try {
+            mediaRecorder.prepare();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
