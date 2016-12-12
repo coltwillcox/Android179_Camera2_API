@@ -5,9 +5,11 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,6 +28,7 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -38,14 +41,15 @@ public class ActivityMain extends AppCompatActivity {
     @BindView(R.id.activitymain_textureview)
     TextureView textureView;
 
+    private static SparseIntArray orientations;
     private TextureView.SurfaceTextureListener surfaceTextureListener;
     private CameraDevice camera;
     private CameraDevice.StateCallback cameraStateCallback;
     private String cameraId;
     private HandlerThread handlerThreadBackground;
     private Handler handler;
-    private static SparseIntArray orientations;
     private Size previewSize;
+    private CaptureRequest.Builder captureRequestBuilder;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,7 +84,7 @@ public class ActivityMain extends AppCompatActivity {
             @Override
             public void onOpened(CameraDevice cameraDevice) {
                 camera = cameraDevice;
-                Toast.makeText(ActivityMain.this, "Camera connection made.", Toast.LENGTH_SHORT).show();
+                startPreview();
             }
 
             @Override
@@ -197,7 +201,7 @@ public class ActivityMain extends AppCompatActivity {
                     if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
                         Toast.makeText(this, getString(R.string.app_name) + " requires access to camera.", Toast.LENGTH_SHORT).show();
                     }
-                    requestPermissions(new String[] {Manifest.permission.CAMERA}, CAMERA_REQUEST);
+                    requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_REQUEST);
                 }
             } else {
                 cameraManager.openCamera(cameraId, cameraStateCallback, handler);
@@ -205,6 +209,39 @@ public class ActivityMain extends AppCompatActivity {
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+    }
+
+    private void startPreview() {
+        SurfaceTexture surfaceTexture = textureView.getSurfaceTexture();
+        surfaceTexture.setDefaultBufferSize(previewSize.getWidth(), previewSize.getHeight());
+        Surface surfacePreview = new Surface(surfaceTexture);
+
+        try {
+            captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            captureRequestBuilder.addTarget(surfacePreview);
+            camera.createCaptureSession(
+                    Arrays.asList(surfacePreview),
+                    new CameraCaptureSession.StateCallback() {
+                        @Override
+                        public void onConfigured(CameraCaptureSession cameraCaptureSession) {
+                            try {
+                                cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(), null, handler);
+                            } catch (CameraAccessException e) {
+                                e.printStackTrace();
+                            }
+                        }
+
+                        @Override
+                        public void onConfigureFailed(CameraCaptureSession cameraCaptureSession) {
+                            Toast.makeText(getApplicationContext(), "Unable to setup camera preview.", Toast.LENGTH_SHORT).show();
+                        }
+                    },
+                    null
+            );
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
     }
 
     private void closeCamera() {
