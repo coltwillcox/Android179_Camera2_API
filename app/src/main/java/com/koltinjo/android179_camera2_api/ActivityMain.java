@@ -7,16 +7,18 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.TextureView;
 import android.view.View;
-import android.widget.Toast;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 
 // https://www.youtube.com/watch?v=CuvVpsFc77w&index=1&list=PL9jCwTXYWjDIHNEGtsRdCTk79I9-95TbJ
 public class ActivityMain extends AppCompatActivity {
+
+    private static final String THREAD_NAME = "thread69";
 
     @BindView(R.id.activitymain_textureview)
     TextureView textureView;
@@ -25,7 +27,8 @@ public class ActivityMain extends AppCompatActivity {
     private CameraDevice camera;
     private CameraDevice.StateCallback cameraStateCallback;
     private String cameraId;
-
+    private HandlerThread handlerThreadBackground;
+    private Handler handler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,6 +82,7 @@ public class ActivityMain extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
+        startBackgroundThread();
         if (textureView.isAvailable()) {
             setupCamera(textureView.getWidth(), textureView.getHeight());
         } else {
@@ -89,6 +93,7 @@ public class ActivityMain extends AppCompatActivity {
     @Override
     protected void onPause() {
         closeCamera();
+        stopBackgroundThread();
 
         super.onPause();
     }
@@ -131,6 +136,23 @@ public class ActivityMain extends AppCompatActivity {
         if (camera != null) {
             camera.close();
             camera = null;
+        }
+    }
+
+    private void startBackgroundThread() {
+        handlerThreadBackground = new HandlerThread(THREAD_NAME);
+        handlerThreadBackground.start();
+        handler = new Handler(handlerThreadBackground.getLooper());
+    }
+
+    private void stopBackgroundThread() {
+        handlerThreadBackground.quitSafely();
+        try {
+            handlerThreadBackground.join();
+            handlerThreadBackground = null;
+            handler = null;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         }
     }
 
