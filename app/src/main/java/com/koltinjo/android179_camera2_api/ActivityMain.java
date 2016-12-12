@@ -6,17 +6,22 @@ import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
+import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import butterknife.BindView;
 import butterknife.ButterKnife;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 // https://www.youtube.com/watch?v=CuvVpsFc77w&index=1&list=PL9jCwTXYWjDIHNEGtsRdCTk79I9-95TbJ
 public class ActivityMain extends AppCompatActivity {
@@ -33,6 +38,7 @@ public class ActivityMain extends AppCompatActivity {
     private HandlerThread handlerThreadBackground;
     private Handler handler;
     private static SparseIntArray orientations;
+    private Size previewSize;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -135,6 +141,8 @@ public class ActivityMain extends AppCompatActivity {
                     continue;
                 }
 
+                StreamConfigurationMap map = cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
                 int orientation = getWindowManager().getDefaultDisplay().getRotation();
                 int rotationTotal = sensorToDeviceRotation(cameraCharacteristics, orientation);
                 // Swap if in landscape mode.
@@ -148,6 +156,7 @@ public class ActivityMain extends AppCompatActivity {
                     heightRotated = height;
                 }
 
+                previewSize = chooseOptimumSize(map.getOutputSizes(SurfaceTexture.class), widthRotated, heightRotated);
                 cameraId = id;
                 return;
             }
@@ -184,6 +193,22 @@ public class ActivityMain extends AppCompatActivity {
         int orientationSensor = cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
         int orientationDevice = orientations.get(orientation);
         return (orientationSensor + orientationDevice + 360) % 360;
+    }
+
+    private static Size chooseOptimumSize(Size[] choices, int width, int height) {
+        List<Size> bigEnough = new ArrayList<>();
+        for (Size option : choices) {
+            // Ratio check.
+            if (option.getHeight() == option.getWidth() * height / width && option.getWidth() >= width && option.getHeight() >= height) {
+                bigEnough.add(option);
+            }
+        }
+        if (!bigEnough.isEmpty()) {
+            return Collections.min(bigEnough, new CompareSizeByArea());
+        } else {
+            // If all else fails.
+            return choices[0];
+        }
     }
 
 }
