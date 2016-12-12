@@ -1,16 +1,62 @@
 package com.koltinjo.android179_camera2_api;
 
-import android.support.v7.app.AppCompatActivity;
+import android.graphics.SurfaceTexture;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
+import android.view.TextureView;
 import android.view.View;
+import android.widget.Toast;
+import butterknife.BindView;
+import butterknife.ButterKnife;
 
 // https://www.youtube.com/watch?v=CuvVpsFc77w&index=1&list=PL9jCwTXYWjDIHNEGtsRdCTk79I9-95TbJ
 public class ActivityMain extends AppCompatActivity {
+
+    @BindView(R.id.activitymain_textureview)
+    TextureView textureView;
+
+    private TextureView.SurfaceTextureListener surfaceTextureListener;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        ButterKnife.bind(this);
+
+        surfaceTextureListener = new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
+                Toast.makeText(getApplicationContext(), "onSurfaceTextureAvailable", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int i, int i1) {
+
+            }
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
+                return false;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {
+
+            }
+        };
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (textureView.isAvailable()) {
+
+        } else {
+            textureView.setSurfaceTextureListener(surfaceTextureListener);
+        }
     }
 
     @Override
