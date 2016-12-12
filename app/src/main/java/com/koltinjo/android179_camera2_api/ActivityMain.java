@@ -1,6 +1,7 @@
 package com.koltinjo.android179_camera2_api;
 
 import android.graphics.SurfaceTexture;
+import android.hardware.camera2.CameraDevice;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.TextureView;
@@ -16,6 +17,8 @@ public class ActivityMain extends AppCompatActivity {
     TextureView textureView;
 
     private TextureView.SurfaceTextureListener surfaceTextureListener;
+    private CameraDevice camera;
+    private CameraDevice.StateCallback cameraStateCallback;
 
 
     @Override
@@ -46,6 +49,24 @@ public class ActivityMain extends AppCompatActivity {
 
             }
         };
+        cameraStateCallback = new CameraDevice.StateCallback() {
+            @Override
+            public void onOpened(CameraDevice cameraDevice) {
+                camera = cameraDevice;
+            }
+
+            @Override
+            public void onDisconnected(CameraDevice cameraDevice) {
+                cameraDevice.close();
+                camera = null;
+            }
+
+            @Override
+            public void onError(CameraDevice cameraDevice, int i) {
+                cameraDevice.close();
+                camera = null;
+            }
+        };
     }
 
     @Override
@@ -57,6 +78,13 @@ public class ActivityMain extends AppCompatActivity {
         } else {
             textureView.setSurfaceTextureListener(surfaceTextureListener);
         }
+    }
+
+    @Override
+    protected void onPause() {
+        closeCamera();
+
+        super.onPause();
     }
 
     @Override
@@ -73,6 +101,13 @@ public class ActivityMain extends AppCompatActivity {
                             | View.SYSTEM_UI_FLAG_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
             );
+        }
+    }
+
+    private void closeCamera() {
+        if (camera != null) {
+            camera.close();
+            camera = null;
         }
     }
 
