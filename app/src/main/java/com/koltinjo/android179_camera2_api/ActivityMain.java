@@ -14,6 +14,7 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.CamcorderProfile;
 import android.media.Image;
 import android.media.ImageReader;
 import android.media.MediaRecorder;
@@ -36,6 +37,7 @@ import android.widget.ImageButton;
 import android.widget.Toast;
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import butterknife.OnLongClick;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -91,6 +93,7 @@ public class ActivityMain extends AppCompatActivity {
     private String imageFileName;
     private CameraCaptureSession captureSessionRecord;
     private CameraCaptureSession.CaptureCallback captureCallbackRecord;
+    private boolean timelapse;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -211,6 +214,7 @@ public class ActivityMain extends AppCompatActivity {
         };
         orientations = new SparseIntArray();
         recording = false;
+        timelapse = false;
         mediaRecorder = new MediaRecorder();
         captureState = STATE_PREVIEW;
 
@@ -405,7 +409,11 @@ public class ActivityMain extends AppCompatActivity {
     }
 
     private void startRecord() {
-        setupMediaRecorder();
+        if (recording) {
+            setupMediaRecorder();
+        } else if (timelapse) {
+            setupTimelapse();
+        }
         SurfaceTexture surfaceTexture = textureView.getSurfaceTexture();
         surfaceTexture.setDefaultBufferSize(previewSize.getWidth(), previewSize.getHeight());
         Surface surfacePreview = new Surface(surfaceTexture);
@@ -487,24 +495,36 @@ public class ActivityMain extends AppCompatActivity {
         }
     }
 
+    // Image button method.
+    public void captureImage(View view) {
+        lockFocus();
+    }
+
     // Video button method.
     public void recordVideo(View view) {
-        if (recording) {
+        if (recording || timelapse) {
             chronometer.stop();
             chronometer.setVisibility(View.INVISIBLE);
             recording = false;
+            timelapse = false;
             imageButtonVideo.setImageResource(R.mipmap.button_video_online);
             mediaRecorder.stop();
             mediaRecorder.reset();
             startPreview();
         } else {
+            recording = true;
+            imageButtonVideo.setImageResource(R.mipmap.button_video_busy);
             checkWriteStoragePermission();
         }
     }
 
-    // Image button method.
-    public void captureImage(View view) {
-        lockFocus();
+    // Video button onLongClick.
+    @OnLongClick(R.id.activitymain_imagebutton_video)
+    public boolean onLongClick(View view) {
+        timelapse = true;
+        imageButtonVideo.setImageResource(R.mipmap.button_timelapse);
+        checkWriteStoragePermission();
+        return true;
     }
 
     private void createVideoFolder() {
@@ -554,8 +574,6 @@ public class ActivityMain extends AppCompatActivity {
     private void checkWriteStoragePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-                recording = true;
-                imageButtonVideo.setImageResource(R.mipmap.button_video_busy);
                 createVideoFileName();
                 startRecord();
                 mediaRecorder.start();
@@ -569,8 +587,6 @@ public class ActivityMain extends AppCompatActivity {
                 requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, WRITE_REQUEST);
             }
         } else {
-            recording = true;
-            imageButtonVideo.setImageResource(R.mipmap.button_video_busy);
             createVideoFileName();
             startRecord();
             mediaRecorder.start();
@@ -590,6 +606,19 @@ public class ActivityMain extends AppCompatActivity {
         mediaRecorder.setVideoFrameRate(30);
         mediaRecorder.setVideoSize(videoSize.getWidth(), videoSize.getHeight());
         mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
+        mediaRecorder.setOrientationHint(rotationTotal);
+        try {
+            mediaRecorder.prepare();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void setupTimelapse() {
+        mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+        mediaRecorder.setProfile(CamcorderProfile.get(CamcorderProfile.QUALITY_TIME_LAPSE_HIGH));
+        mediaRecorder.setOutputFile(videoFileName);
+        mediaRecorder.setCaptureRate(2);
         mediaRecorder.setOrientationHint(rotationTotal);
         try {
             mediaRecorder.prepare();
