@@ -17,6 +17,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -25,6 +26,7 @@ import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
+import android.widget.Chronometer;
 import android.widget.ImageButton;
 import android.widget.Toast;
 import butterknife.BindView;
@@ -52,6 +54,8 @@ public class ActivityMain extends AppCompatActivity {
     TextureView textureView;
     @BindView(R.id.activitymain_imagebutton_video)
     ImageButton imageButtonVideo;
+    @BindView(R.id.activitymain_chronometer)
+    Chronometer chronometer;
 
     private static SparseIntArray orientations;
     private boolean recording;
@@ -106,6 +110,9 @@ public class ActivityMain extends AppCompatActivity {
                     createVideoFileName();
                     startRecord();
                     mediaRecorder.start();
+                    chronometer.setBase(SystemClock.elapsedRealtime());
+                    chronometer.setVisibility(View.VISIBLE);
+                    chronometer.start();
                 } else {
                     startPreview();
                 }
@@ -368,6 +375,8 @@ public class ActivityMain extends AppCompatActivity {
     // Video button method.
     public void recordVideo(View view) {
         if (recording) {
+            chronometer.stop();
+            chronometer.setVisibility(View.INVISIBLE);
             recording = false;
             imageButtonVideo.setImageResource(R.mipmap.button_video_online);
             mediaRecorder.stop();
@@ -409,6 +418,9 @@ public class ActivityMain extends AppCompatActivity {
                 createVideoFileName();
                 startRecord();
                 mediaRecorder.start();
+                chronometer.setBase(SystemClock.elapsedRealtime());
+                chronometer.setVisibility(View.VISIBLE);
+                chronometer.start();
             } else {
                 if (shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
                     Toast.makeText(this, getString(R.string.app_name) + " needs to be able to save videos.", Toast.LENGTH_SHORT).show();
@@ -421,6 +433,9 @@ public class ActivityMain extends AppCompatActivity {
             createVideoFileName();
             startRecord();
             mediaRecorder.start();
+            chronometer.setBase(SystemClock.elapsedRealtime());
+            chronometer.setVisibility(View.VISIBLE);
+            chronometer.start();
         }
     }
 
