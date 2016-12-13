@@ -3,6 +3,7 @@ package com.koltinjo.android179_camera2_api;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -10,7 +11,10 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
+import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.ImageReader;
 import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Bundle;
@@ -21,6 +25,7 @@ import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
@@ -46,9 +51,11 @@ import java.util.List;
 // https://www.youtube.com/watch?v=CuvVpsFc77w&index=1&list=PL9jCwTXYWjDIHNEGtsRdCTk79I9-95TbJ
 public class ActivityMain extends AppCompatActivity {
 
-    private static final String THREAD_NAME = "thread69";
-    private static final int CAMERA_REQUEST = 69;
-    private static final int WRITE_REQUEST = 70;
+    private static final String THREAD_NAME = "threadCamera2API";
+    private static final int CAMERA_REQUEST = 61;
+    private static final int WRITE_REQUEST = 62;
+    private static final int STATE_PREVIEW = 71;
+    private static final int STATE_WAIT_LOCK = 72;
 
     @BindView(R.id.activitymain_textureview)
     TextureView textureView;
@@ -72,6 +79,12 @@ public class ActivityMain extends AppCompatActivity {
     private int rotationTotal;
     private Size videoSize;
     private MediaRecorder mediaRecorder;
+    private Size imageSize;
+    private ImageReader imageReader;
+    private ImageReader.OnImageAvailableListener imageReaderListener;
+    private CameraCaptureSession captureSession;
+    private CameraCaptureSession.CaptureCallback captureCallback;
+    private int captureState;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -130,9 +143,42 @@ public class ActivityMain extends AppCompatActivity {
                 camera = null;
             }
         };
+        imageReaderListener = new ImageReader.OnImageAvailableListener() {
+            @Override
+            public void onImageAvailable(ImageReader imageReader) {
+
+            }
+        };
+        captureCallback = new CameraCaptureSession.CaptureCallback() {
+            @Override
+            public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
+                super.onCaptureCompleted(session, request, result);
+                process(result);
+            }
+
+            private void process(CaptureResult captureResult) {
+                switch (captureState) {
+                    case STATE_PREVIEW:
+                        // Do nothing.
+                        break;
+                    case STATE_WAIT_LOCK:
+                        captureState = STATE_PREVIEW;
+                        Integer autoFocusState = captureResult.get(CaptureResult.CONTROL_AF_STATE);
+                        Log.d("oiram", autoFocusState.toString());
+                        if (autoFocusState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED || autoFocusState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
+                            Toast.makeText(getApplicationContext(), "Focus locked.", Toast.LENGTH_SHORT).show();
+                        } else if (autoFocusState == CaptureResult.CONTROL_AF_STATE_INACTIVE) {
+                            // Workaround for no focus?
+                            Toast.makeText(getApplicationContext(), "Focus not locked, but who cares.", Toast.LENGTH_SHORT).show();
+                        }
+                        break;
+                }
+            }
+        };
         orientations = new SparseIntArray();
         recording = false;
         mediaRecorder = new MediaRecorder();
+        captureState = STATE_PREVIEW;
 
         createVideoFolder();
 
@@ -229,6 +275,9 @@ public class ActivityMain extends AppCompatActivity {
 
                 previewSize = chooseOptimumSize(map.getOutputSizes(SurfaceTexture.class), widthRotated, heightRotated);
                 videoSize = chooseOptimumSize(map.getOutputSizes(MediaRecorder.class), widthRotated, heightRotated);
+                imageSize = chooseOptimumSize(map.getOutputSizes(ImageFormat.JPEG), widthRotated, heightRotated);
+                imageReader = ImageReader.newInstance(imageSize.getWidth(), imageSize.getHeight(), ImageFormat.JPEG, 1);
+                imageReader.setOnImageAvailableListener(imageReaderListener, handler);
                 cameraId = id;
                 return;
             }
@@ -267,12 +316,13 @@ public class ActivityMain extends AppCompatActivity {
             captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             captureRequestBuilder.addTarget(surfacePreview);
             camera.createCaptureSession(
-                    Arrays.asList(surfacePreview),
+                    Arrays.asList(surfacePreview, imageReader.getSurface()),
                     new CameraCaptureSession.StateCallback() {
                         @Override
                         public void onConfigured(CameraCaptureSession cameraCaptureSession) {
+                            captureSession = cameraCaptureSession;
                             try {
-                                cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(), null, handler);
+                                captureSession.setRepeatingRequest(captureRequestBuilder.build(), null, handler);
                             } catch (CameraAccessException e) {
                                 e.printStackTrace();
                             }
@@ -387,6 +437,11 @@ public class ActivityMain extends AppCompatActivity {
         }
     }
 
+    // Image button method.
+    public void captureImage(View view) {
+        lockFocus();
+    }
+
     private void createVideoFolder() {
         File fileMovie = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES);
         videoFolder = new File(fileMovie, getString(R.string.app_name));
@@ -451,6 +506,16 @@ public class ActivityMain extends AppCompatActivity {
         try {
             mediaRecorder.prepare();
         } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void lockFocus() {
+        captureState = STATE_WAIT_LOCK;
+        captureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START);
+        try {
+            captureSession.capture(captureRequestBuilder.build(), captureCallback, handler);
+        } catch (CameraAccessException e) {
             e.printStackTrace();
         }
     }
