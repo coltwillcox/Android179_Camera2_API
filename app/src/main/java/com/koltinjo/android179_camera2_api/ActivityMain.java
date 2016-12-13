@@ -2,6 +2,7 @@ package com.koltinjo.android179_camera2_api;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
@@ -18,6 +19,7 @@ import android.media.CamcorderProfile;
 import android.media.Image;
 import android.media.ImageReader;
 import android.media.MediaRecorder;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -510,6 +512,7 @@ public class ActivityMain extends AppCompatActivity {
             imageButtonVideo.setImageResource(R.mipmap.button_video_online);
             mediaRecorder.stop();
             mediaRecorder.reset();
+            updateMediaStoreVideo();
             startPreview();
         } else {
             recording = true;
@@ -641,6 +644,18 @@ public class ActivityMain extends AppCompatActivity {
         }
     }
 
+    private void updateMediaStoreImage() {
+        Intent intentMediaStoreUpdate = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+        intentMediaStoreUpdate.setData(Uri.fromFile(new File(imageFileName)));
+        sendBroadcast(intentMediaStoreUpdate);
+    }
+
+    private void updateMediaStoreVideo() {
+        Intent intentMediaStoreUpdate = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+        intentMediaStoreUpdate.setData(Uri.fromFile(new File(videoFileName)));
+        sendBroadcast(intentMediaStoreUpdate);
+    }
+
     // Subclass
     public class ImageSaver implements Runnable {
         private final Image image;
@@ -663,6 +678,7 @@ public class ActivityMain extends AppCompatActivity {
                 e.printStackTrace();
             } finally {
                 image.close();
+                updateMediaStoreImage();
                 if (fileOutputStream != null) {
                     try {
                         fileOutputStream.close();
