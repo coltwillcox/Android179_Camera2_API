@@ -26,7 +26,6 @@ import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
@@ -39,7 +38,6 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -86,12 +84,13 @@ public class ActivityMain extends AppCompatActivity {
     private Size imageSize;
     private ImageReader imageReader;
     private ImageReader.OnImageAvailableListener imageReaderListener;
-    private CameraCaptureSession captureSession;
-    private CameraCaptureSession.CaptureCallback captureCallback;
+    private CameraCaptureSession captureSessionPreview;
+    private CameraCaptureSession.CaptureCallback captureCallbackPreview;
     private int captureState;
     private File imageFolder;
     private String imageFileName;
-
+    private CameraCaptureSession captureSessionRecord;
+    private CameraCaptureSession.CaptureCallback captureCallbackRecord;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -156,7 +155,34 @@ public class ActivityMain extends AppCompatActivity {
                 handler.post(new ImageSaver(imageReader.acquireLatestImage()));
             }
         };
-        captureCallback = new CameraCaptureSession.CaptureCallback() {
+        captureCallbackPreview = new CameraCaptureSession.CaptureCallback() {
+            @Override
+            public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
+                super.onCaptureCompleted(session, request, result);
+                process(result);
+            }
+
+            private void process(CaptureResult captureResult) {
+                switch (captureState) {
+                    case STATE_PREVIEW:
+                        // Do nothing.
+                        break;
+                    case STATE_WAIT_LOCK:
+                        captureState = STATE_PREVIEW;
+                        Integer autoFocusState = captureResult.get(CaptureResult.CONTROL_AF_STATE);
+                        if (autoFocusState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED || autoFocusState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
+                            Toast.makeText(getApplicationContext(), "Focus locked.", Toast.LENGTH_SHORT).show();
+                            startStillCapture();
+                        } else if (autoFocusState == CaptureResult.CONTROL_AF_STATE_INACTIVE) {
+                            // Workaround for no focus?
+                            Toast.makeText(getApplicationContext(), "Focus not locked, but who cares.", Toast.LENGTH_SHORT).show();
+                            startStillCapture();
+                        }
+                        break;
+                }
+            }
+        };
+        captureCallbackRecord = new CameraCaptureSession.CaptureCallback() {
             @Override
             public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
                 super.onCaptureCompleted(session, request, result);
@@ -329,9 +355,9 @@ public class ActivityMain extends AppCompatActivity {
                     new CameraCaptureSession.StateCallback() {
                         @Override
                         public void onConfigured(CameraCaptureSession cameraCaptureSession) {
-                            captureSession = cameraCaptureSession;
+                            captureSessionPreview = cameraCaptureSession;
                             try {
-                                captureSession.setRepeatingRequest(captureRequestBuilder.build(), null, handler);
+                                captureSessionPreview.setRepeatingRequest(captureRequestBuilder.build(), null, handler);
                             } catch (CameraAccessException e) {
                                 e.printStackTrace();
                             }
@@ -351,7 +377,11 @@ public class ActivityMain extends AppCompatActivity {
 
     private void startStillCapture() {
         try {
-            captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+            if (recording) {
+                captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_VIDEO_SNAPSHOT);
+            } else {
+                captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+            }
             captureRequestBuilder.addTarget(imageReader.getSurface());
             captureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, rotationTotal);
             CameraCaptureSession.CaptureCallback stillCaptureCallback = new CameraCaptureSession.CaptureCallback() {
@@ -361,7 +391,11 @@ public class ActivityMain extends AppCompatActivity {
                     createImageFileName();
                 }
             };
-            captureSession.capture(captureRequestBuilder.build(), stillCaptureCallback, null);
+            if (recording) {
+                captureSessionRecord.capture(captureRequestBuilder.build(), stillCaptureCallback, null);
+            } else {
+                captureSessionPreview.capture(captureRequestBuilder.build(), stillCaptureCallback, null);
+            }
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -380,12 +414,13 @@ public class ActivityMain extends AppCompatActivity {
             captureRequestBuilder.addTarget(surfaceRecord);
             // TODO Check on real device.
             camera.createCaptureSession(
-                    Arrays.asList(surfacePreview, surfaceRecord),
+                    Arrays.asList(surfacePreview, surfaceRecord, imageReader.getSurface()),
                     new CameraCaptureSession.StateCallback() {
                         @Override
                         public void onConfigured(CameraCaptureSession cameraCaptureSession) {
+                            captureSessionRecord = cameraCaptureSession;
                             try {
-                                cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(), null, null);
+                                captureSessionRecord.setRepeatingRequest(captureRequestBuilder.build(), null, null);
                             } catch (CameraAccessException e) {
                                 e.printStackTrace();
                             }
@@ -562,7 +597,11 @@ public class ActivityMain extends AppCompatActivity {
         captureState = STATE_WAIT_LOCK;
         captureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START);
         try {
-            captureSession.capture(captureRequestBuilder.build(), captureCallback, handler);
+            if (recording) {
+                captureSessionRecord.capture(captureRequestBuilder.build(), captureCallbackRecord, handler);
+            } else {
+                captureSessionPreview.capture(captureRequestBuilder.build(), captureCallbackPreview, handler);
+            }
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
