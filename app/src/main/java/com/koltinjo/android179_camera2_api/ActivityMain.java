@@ -54,7 +54,7 @@ import java.util.List;
 public class ActivityMain extends AppCompatActivity {
 
     private static final String THREAD_NAME = "threadCamera2API";
-    private static final int CAMERA_REQUEST = 61;
+    private static final int CAMERA_REQUEST = 61; // Used also fo audio recording permission.
     private static final int WRITE_REQUEST = 62;
     private static final int STATE_PREVIEW = 71;
     private static final int STATE_WAIT_LOCK = 72;
@@ -270,6 +270,9 @@ public class ActivityMain extends AppCompatActivity {
                 if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                     Toast.makeText(this, getString(R.string.app_name) + " will not run without camera permission.", Toast.LENGTH_SHORT).show();
                 }
+                if (grantResults[1] != PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, getString(R.string.app_name) + " will not record without audio permission.", Toast.LENGTH_SHORT).show();
+                }
                 break;
             case WRITE_REQUEST:
                 if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -332,7 +335,7 @@ public class ActivityMain extends AppCompatActivity {
                     if (shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)) {
                         Toast.makeText(this, getString(R.string.app_name) + " requires access to camera.", Toast.LENGTH_SHORT).show();
                     }
-                    requestPermissions(new String[]{Manifest.permission.CAMERA}, CAMERA_REQUEST);
+                    requestPermissions(new String[]{Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO}, CAMERA_REQUEST);
                 }
             } else {
                 cameraManager.openCamera(cameraId, cameraStateCallback, handler);
@@ -580,6 +583,8 @@ public class ActivityMain extends AppCompatActivity {
     private void setupMediaRecorder() {
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
         mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
         mediaRecorder.setOutputFile(videoFileName);
         mediaRecorder.setVideoEncodingBitRate(1000000);
         mediaRecorder.setVideoFrameRate(30);
