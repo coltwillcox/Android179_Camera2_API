@@ -14,6 +14,7 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.Image;
 import android.media.ImageReader;
 import android.media.MediaRecorder;
 import android.os.Build;
@@ -38,7 +39,10 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -85,6 +89,9 @@ public class ActivityMain extends AppCompatActivity {
     private CameraCaptureSession captureSession;
     private CameraCaptureSession.CaptureCallback captureCallback;
     private int captureState;
+    private File imageFolder;
+    private String imageFileName;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -146,7 +153,7 @@ public class ActivityMain extends AppCompatActivity {
         imageReaderListener = new ImageReader.OnImageAvailableListener() {
             @Override
             public void onImageAvailable(ImageReader imageReader) {
-
+                handler.post(new ImageSaver(imageReader.acquireLatestImage()));
             }
         };
         captureCallback = new CameraCaptureSession.CaptureCallback() {
@@ -164,12 +171,13 @@ public class ActivityMain extends AppCompatActivity {
                     case STATE_WAIT_LOCK:
                         captureState = STATE_PREVIEW;
                         Integer autoFocusState = captureResult.get(CaptureResult.CONTROL_AF_STATE);
-                        Log.d("oiram", autoFocusState.toString());
                         if (autoFocusState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED || autoFocusState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED) {
                             Toast.makeText(getApplicationContext(), "Focus locked.", Toast.LENGTH_SHORT).show();
+                            startStillCapture();
                         } else if (autoFocusState == CaptureResult.CONTROL_AF_STATE_INACTIVE) {
                             // Workaround for no focus?
                             Toast.makeText(getApplicationContext(), "Focus not locked, but who cares.", Toast.LENGTH_SHORT).show();
+                            startStillCapture();
                         }
                         break;
                 }
@@ -181,6 +189,7 @@ public class ActivityMain extends AppCompatActivity {
         captureState = STATE_PREVIEW;
 
         createVideoFolder();
+        createImageFolder();
 
         orientations.append(Surface.ROTATION_0, 0);
         orientations.append(Surface.ROTATION_90, 90);
@@ -340,6 +349,24 @@ public class ActivityMain extends AppCompatActivity {
         }
     }
 
+    private void startStillCapture() {
+        try {
+            captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+            captureRequestBuilder.addTarget(imageReader.getSurface());
+            captureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, rotationTotal);
+            CameraCaptureSession.CaptureCallback stillCaptureCallback = new CameraCaptureSession.CaptureCallback() {
+                @Override
+                public void onCaptureStarted(CameraCaptureSession session, CaptureRequest request, long timestamp, long frameNumber) {
+                    super.onCaptureStarted(session, request, timestamp, frameNumber);
+                    createImageFileName();
+                }
+            };
+            captureSession.capture(captureRequestBuilder.build(), stillCaptureCallback, null);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void startRecord() {
         setupMediaRecorder();
         SurfaceTexture surfaceTexture = textureView.getSurfaceTexture();
@@ -465,6 +492,27 @@ public class ActivityMain extends AppCompatActivity {
         return videoFile;
     }
 
+    private void createImageFolder() {
+        File fileImage = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        imageFolder = new File(fileImage, getString(R.string.app_name));
+        if (!imageFolder.exists()) {
+            imageFolder.mkdirs();
+        }
+    }
+
+    private File createImageFileName() {
+        String time = new SimpleDateFormat("MMddyyyyHHmmss").format(new Date());
+        String prefix = "image_";
+        File imageFile = null;
+        try {
+            imageFile = File.createTempFile(prefix, ".jpg", imageFolder);
+            imageFileName = imageFile.getAbsolutePath();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return imageFile;
+    }
+
     private void checkWriteStoragePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
@@ -517,6 +565,39 @@ public class ActivityMain extends AppCompatActivity {
             captureSession.capture(captureRequestBuilder.build(), captureCallback, handler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
+        }
+    }
+
+    // Subclass
+    public class ImageSaver implements Runnable {
+        private final Image image;
+
+        public ImageSaver(Image image) {
+            this.image = image;
+        }
+
+        @Override
+        public void run() {
+            ByteBuffer byteBuffer = image.getPlanes()[0].getBuffer();
+            byte[] bytes = new byte[byteBuffer.remaining()];
+            byteBuffer.get(bytes);
+
+            FileOutputStream fileOutputStream = null;
+            try {
+                fileOutputStream = new FileOutputStream(imageFileName);
+                fileOutputStream.write(bytes);
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                image.close();
+                if (fileOutputStream != null) {
+                    try {
+                        fileOutputStream.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
         }
     }
 
