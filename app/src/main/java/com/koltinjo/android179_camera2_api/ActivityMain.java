@@ -102,7 +102,13 @@ public class ActivityMain extends AppCompatActivity {
             @Override
             public void onOpened(CameraDevice cameraDevice) {
                 camera = cameraDevice;
-                startPreview();
+                if (recording) {
+                    createVideoFileName();
+                    startRecord();
+                    mediaRecorder.start();
+                } else {
+                    startPreview();
+                }
             }
 
             @Override
@@ -275,7 +281,42 @@ public class ActivityMain extends AppCompatActivity {
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+    }
 
+    private void startRecord() {
+        setupMediaRecorder();
+        SurfaceTexture surfaceTexture = textureView.getSurfaceTexture();
+        surfaceTexture.setDefaultBufferSize(previewSize.getWidth(), previewSize.getHeight());
+        Surface surfacePreview = new Surface(surfaceTexture);
+        Surface surfaceRecord = mediaRecorder.getSurface();
+
+        try {
+            captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+            captureRequestBuilder.addTarget(surfacePreview);
+            captureRequestBuilder.addTarget(surfaceRecord);
+            // TODO Check on real device.
+            camera.createCaptureSession(
+                    Arrays.asList(surfacePreview, surfaceRecord),
+                    new CameraCaptureSession.StateCallback() {
+                        @Override
+                        public void onConfigured(CameraCaptureSession cameraCaptureSession) {
+                            try {
+                                cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(), null, null);
+                            } catch (CameraAccessException e) {
+                                e.printStackTrace();
+                            }
+                        }
+
+                        @Override
+                        public void onConfigureFailed(CameraCaptureSession cameraCaptureSession) {
+                            Toast.makeText(getApplicationContext(), "Unable to record video.", Toast.LENGTH_SHORT).show();
+                        }
+                    },
+                    null
+            );
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
     }
 
     private void closeCamera() {
@@ -329,6 +370,9 @@ public class ActivityMain extends AppCompatActivity {
         if (recording) {
             recording = false;
             imageButtonVideo.setImageResource(R.mipmap.button_video_online);
+            mediaRecorder.stop();
+            mediaRecorder.reset();
+            startPreview();
         } else {
             checkWriteStoragePermission();
         }
@@ -345,7 +389,8 @@ public class ActivityMain extends AppCompatActivity {
     // TODO return = void?
     private File createVideoFileName() {
         String time = new SimpleDateFormat("MMddyyyyHHmmss").format(new Date());
-        String prefix = "video_" + time;
+//        String prefix = "video_" + time;
+        String prefix = "video_";
         File videoFile = null;
         try {
             videoFile = File.createTempFile(prefix, ".mp4", videoFolder);
@@ -362,16 +407,20 @@ public class ActivityMain extends AppCompatActivity {
                 recording = true;
                 imageButtonVideo.setImageResource(R.mipmap.button_video_busy);
                 createVideoFileName();
+                startRecord();
+                mediaRecorder.start();
             } else {
                 if (shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
                     Toast.makeText(this, getString(R.string.app_name) + " needs to be able to save videos.", Toast.LENGTH_SHORT).show();
                 }
-                requestPermissions(new String[] {Manifest.permission.WRITE_EXTERNAL_STORAGE}, WRITE_REQUEST);
+                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, WRITE_REQUEST);
             }
         } else {
             recording = true;
             imageButtonVideo.setImageResource(R.mipmap.button_video_busy);
             createVideoFileName();
+            startRecord();
+            mediaRecorder.start();
         }
     }
 
